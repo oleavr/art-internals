@@ -1,0 +1,9 @@
+[submodule "aosp/platform/art"]
+	path = aosp/platform/art
+	url = https://android.googlesource.com/platform/art
+[submodule "aosp/platform/system/core"]
+	path = aosp/platform/system/core
+	url = https://android.googlesource.com/platform/system/core
+[submodule "aosp/platform/external/gtest"]
+	path = aosp/platform/external/gtest
+	url = https://android.googlesource.com/platform/external/gtest
