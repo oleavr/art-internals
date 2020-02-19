@@ -1,3 +1,5 @@
+# Note: This tool requires Python >= 3.7
+
 import collections
 import glob
 import os
@@ -41,20 +43,22 @@ tag_pattern = re.compile(r"^android-(((\d)\.(\d))|(q)-)")
 section_data_pattern = re.compile(r"^\s+\d+\s+([\w\s]+)\s{2,}", re.MULTILINE)
 
 ignored_errors = [
-   "is not a member of",
-    "has no member named"
+    "is not a member of",
+    "has no member named",
 ]
 
 
 def main():
-    tags = compute_tags_affecting("runtime/art_method.h")
+    tags = compute_tags_affecting("runtime/mirror/art_field.h", "runtime/art_field.h")
 
     versions = [AndroidVersion.from_tag(tag) for tag in tags]
 
     result = collections.OrderedDict()
     for arch in ["arm", "x86", "arm64", "x86_64"]:
         for version in versions:
-            size, access_flags = probe_offsets("runtime/art_method.h", "art::ArtMethod", ["access_flags_"], version, arch)
+            size, access_flags = probe_offsets("runtime/mirror/art_field.h", "art::mirror::ArtField", ["access_flags_"], version, arch)
+            if size < 0:
+                size, access_flags = probe_offsets("runtime/art_field.h", "art::ArtField", ["access_flags_"], version, arch)
 
             key = "{}-{}".format(arch, version.api_level)
             value = "size={} access_flags={}".format(size, access_flags)
@@ -69,7 +73,13 @@ def main():
 
     print(json.dumps(result, indent=2))
 
-def compute_tags_affecting(filename):
+def compute_tags_affecting(*paths):
+    tags = []
+    for path in paths:
+        tags += compute_tags_affecting_path(path)
+    return list(dict.fromkeys(tags).keys())
+
+def compute_tags_affecting_path(path):
     result = []
 
     tags = filter(is_relevant_tag, run_in_art_repo("git", "tag", "--sort=committerdate").split("\n"))
@@ -79,7 +89,7 @@ def compute_tags_affecting(filename):
         if i == 0:
             result.append(tag)
         else:
-            diff = run_in_art_repo("git", "diff", previous_tag, tag, filename)
+            diff = run_in_art_repo("git", "diff", previous_tag, tag, "--", path)
             if len(diff) > 0:
                 result.append(tag)
 
@@ -203,7 +213,11 @@ def try_parse_version_component(component):
     return int(component)
 
 def run_in_art_repo(*args):
-    return subprocess.run(args, cwd=art_repo_dir, capture_output=True, encoding="utf-8", check=True).stdout.strip()
+    try:
+        return subprocess.run(args, cwd=art_repo_dir, capture_output=True, encoding="utf-8", check=True).stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(e.stderr)
+        raise
 
 def get_aosp_checkout(repo, version):
     tag = version.tag
