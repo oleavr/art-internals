@@ -200,7 +200,7 @@ def get_toolchain(arch, flavor):
     if flavor == "clang":
         host_triplet_abi = host_triplets_abi[arch] + str(api_level)
 
-        install_dir = glob.glob(os.path.join(os.environ["ANDROID_NDK_R19C_ROOT"], "toolchains", "llvm", "prebuilt", "*"))[0]
+        install_dir = glob.glob(os.path.join(os.environ["ANDROID_NDK_R21_ROOT"], "toolchains", "llvm", "prebuilt", "*"))[0]
     else:
         host_triplet_abi = host_triplet_generic
 
