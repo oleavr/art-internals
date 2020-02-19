@@ -42,22 +42,22 @@ section_data_pattern = re.compile(r"^\s+\d+\s+([\w\s]+)\s{2,}", re.MULTILINE)
 
 
 def main():
-    tags = compute_tags_affecting("runtime/runtime.h")
+    tags = compute_tags_affecting("runtime/mirror/class.h")
 
     versions = [AndroidVersion.from_tag(tag) for tag in tags]
 
     result = collections.OrderedDict()
     for arch in ["arm", "x86", "arm64", "x86_64"]:
         for version in versions:
-            vm_offset, instrumentation_offset = probe_offsets("runtime/runtime.h", "art::Runtime", ["java_vm_", "instrumentation_"], version, arch)
-            delta = instrumentation_offset - vm_offset
+            ifields, methods, sfields = probe_offsets("runtime/mirror/class.h", "art::mirror::Class", ["ifields_", "methods_", "sfields_"], version, arch)
 
             key = "{}-{}".format(arch, version.api_level)
+            value = "{} {} {}".format(ifields, methods, sfields)
 
-            print("// {} => {} [{} java_vm_={} instrumentation_={}]".format(key, delta, version.tag, vm_offset, instrumentation_offset))
+            print("// {} => {}".format(key, value))
 
             entries = result.get(key, [])
-            entries.append(delta)
+            entries.append(value)
             entries = list(set(entries))
             entries.sort()
             result[key] = entries
