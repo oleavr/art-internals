@@ -49,16 +49,16 @@ ignored_errors = [
 
 
 def main():
-    tags = compute_tags_affecting("runtime/mirror/art_field.h", "runtime/art_field.h")
+    tags = compute_tags_affecting("runtime/mirror/art_method.h", "runtime/art_method.h")
 
     versions = [AndroidVersion.from_tag(tag) for tag in tags]
 
     result = collections.OrderedDict()
     for arch in ["arm", "x86", "arm64", "x86_64"]:
         for version in versions:
-            size, access_flags = probe_offsets("runtime/mirror/art_field.h", "art::mirror::ArtField", ["access_flags_"], version, arch)
+            size, access_flags = probe_offsets("runtime/mirror/art_method.h", "art::mirror::ArtMethod", ["access_flags_"], version, arch)
             if size < 0:
-                size, access_flags = probe_offsets("runtime/art_field.h", "art::ArtField", ["access_flags_"], version, arch)
+                size, access_flags = probe_offsets("runtime/art_method.h", "art::ArtMethod", ["access_flags_"], version, arch)
 
             key = "{}-{}".format(arch, version.api_level)
             value = "size={} access_flags={}".format(size, access_flags)
