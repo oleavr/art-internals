@@ -40,19 +40,24 @@ api_levels = {
 tag_pattern = re.compile(r"^android-(((\d)\.(\d))|(q)-)")
 section_data_pattern = re.compile(r"^\s+\d+\s+([\w\s]+)\s{2,}", re.MULTILINE)
 
+ignored_errors = [
+   "is not a member of",
+    "has no member named"
+]
+
 
 def main():
-    tags = compute_tags_affecting("runtime/mirror/class.h")
+    tags = compute_tags_affecting("runtime/art_method.h")
 
     versions = [AndroidVersion.from_tag(tag) for tag in tags]
 
     result = collections.OrderedDict()
     for arch in ["arm", "x86", "arm64", "x86_64"]:
         for version in versions:
-            ifields, methods, sfields = probe_offsets("runtime/mirror/class.h", "art::mirror::Class", ["ifields_", "methods_", "sfields_"], version, arch)
+            size, access_flags = probe_offsets("runtime/art_method.h", "art::ArtMethod", ["access_flags_"], version, arch)
 
             key = "{}-{}".format(arch, version.api_level)
-            value = "{} {} {}".format(ifields, methods, sfields)
+            value = "size={} access_flags={}".format(size, access_flags)
 
             print("// {} => {}".format(key, value))
 
@@ -87,25 +92,34 @@ def probe_offsets(header, class_name, field_names, version, arch):
     art_dir = get_aosp_checkout(["platform", "art"], version)
 
     header_path = os.path.join(art_dir, header)
+    if not os.path.exists(header_path):
+        return [-1] + [-1 for n in field_names]
 
     with tempfile.NamedTemporaryFile(prefix="probe", suffix=".cc", mode="w", encoding="utf-8") as probe_source:
-        includes = "#include <{}>".format(header)
-        queries = ",\n  ".join(["offsetof ({}, {})".format(class_name, field_name) for field_name in field_names])
+        includes = [
+            "#include <cstring>",
+            "#include <runtime/runtime.h>",
+            "#include <{}>".format(header)
+        ]
+
+        queries = ["sizeof ({})".format(class_name)]
+        queries += ["offsetof ({}, {})".format(class_name, field_name) for field_name in field_names]
+
         probe_source.write("""\
 #include <cstdlib>
 
 {includes}
 
-unsigned int offsets[] =
+unsigned int values[] =
 {{
-  {offset_queries}
+  {queries}
 }};
-""".format(includes=includes, offset_queries=queries))
+""".format(includes="\n".join(includes), queries=",\n  ".join(queries)))
         probe_source.flush()
 
         with open(header_path, "r", encoding="utf-8") as f:
             header_source = f.read()
-        header_source = header_source.replace("private:", "public:")
+        header_source = header_source.replace("protected:", "public:").replace("private:", "public:")
         with open(header_path, "w", encoding="utf-8") as f:
             f.write(header_source)
 
@@ -145,8 +159,9 @@ unsigned int offsets[] =
                 "-o", probe_obj,
             ], capture_output=True, encoding="utf-8")
             if result.returncode != 0:
-                if "has no member named" in result.stderr:
-                    return [-1 for n in field_names]
+                for e in ignored_errors:
+                    if e in result.stderr:
+                        return [-2] + [-2 for n in field_names]
                 print(result.stderr)
             result.check_returncode()
 
