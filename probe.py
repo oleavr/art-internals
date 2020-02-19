@@ -122,7 +122,7 @@ unsigned int offsets[] =
 
         probe_obj = os.path.splitext(probe_source.name)[0] + ".o"
         try:
-            subprocess.run([
+            result = subprocess.run([
                 toolchain.cxx
                 ] + toolchain.cxxflags + [
                 "-DANDROID_SMP=1",
@@ -143,7 +143,12 @@ unsigned int offsets[] =
                 probe_source.name,
                 "-c",
                 "-o", probe_obj,
-            ], check=True)
+            ], capture_output=True, encoding="utf-8")
+            if result.returncode != 0:
+                if "has no member named" in result.stderr:
+                    return [-1 for n in field_names]
+                print(result.stderr)
+            result.check_returncode()
 
             return parse_objdump_section_as_uint32_array(subprocess.run([
                 toolchain.objdump,
